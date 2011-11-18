@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>storage tests [localStorage, events]</title>
+		<style type="text/css">
+			.header div {
+				text-align: center;
+				font-weight: bold;
+				border-bottom: solid 1px #000000;
+			}
+			.row div {
+				display: inline;
+				display: inline-block;
+				width: 100px;
+			}
+			.url {
+				width: 300px !important;
+			}
+		</style>
+		<script type="text/javascript" src="http://o.aolcdn.com/dojo/1.5/dojo/dojo.xd.js"></script>
+		<script type="text/javascript">
+			var stoTester = {
+					
+				sto: window.localStorage,
+
+				eventProps: [
+					"key", "oldValue", "newValue", "url", "storageArea"
+				],
+
+				init: function(){
+					if(typeof(window.localStorage) == "undefined"){
+						alert("No localStorage available.");
+						return;
+					}
+				
+					this.resultNode = dojo.byId("results");
+					this.buildHeader();
+
+					var listener = dojo.hitch(this, "report");
+					if(window.addEventListener){
+						window.addEventListener("storage", listener, false);
+					}else{
+						dojo.connect(document, "onstorage", this, "report");
+					}
+				},
+
+				buildHeader: function(){
+					var row = '<div class="row header">';
+					dojo.forEach(this.eventProps, function(propName){
+						row += "<div class=\""+propName+"\">" + propName + "</div>"
+					}, this);
+					row += "</div>";
+					this.resultNode.innerHTML += row;
+				},
+
+				report: function(evt){
+					console.log("Event fired.");
+					var row = '<div class="row">';
+					dojo.forEach(this.eventProps, function(propName){
+						row += "<div class=\""+propName+"\">" + evt[propName] + "</div>"
+					}, this);
+					row += "</div>";
+
+					this.resultNode.innerHTML += row;
+					console.log(evt);
+				}
+			};
+
+			dojo.addOnLoad(stoTester, "init");
+
+		</script>
+	</head>
+	<body>
+		<button onclick="localStorage.setItem('key', 'value');">setItem</button>
+		<button onclick="localStorage.removeItem('key');">removeItem</button>
+		<button onclick="localStorage.clear();">clear</button>
+		<hr />
+		<h1>storage tests [localStorage, events]</h1>
+		<ol>
+			<li>Click any of the buttons.</li>
+			<li>OR open another window with the same address and click any of the buttons.</li>
+			<li>See if the fields in the table are filled (Note: all fields should be filled on all open windows).</li>
+		</ol>
+		<hr />
+		<div id="results"></div>
+	</body>
+</html>

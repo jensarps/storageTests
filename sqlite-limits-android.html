@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>storage tests [sqlite, size limit]</title>
+		<style type="text/css">
+			.header div {
+				text-align: center;
+				font-weight: bold;
+				border-bottom: solid 1px #000000;
+			}
+			.row div {
+				display: inline-block;
+				width: 100px;
+			}
+		</style>
+		<script type="text/javascript" src="http://o.aolcdn.com/dojo/1.5/dojo/dojo.xd.js"></script>
+		<script type="text/javascript">
+			var stoTester = {
+				
+				dataChunk: new Array(512 * 1024 + 1).join('x'),
+
+				currentChunk: null,
+				
+				dbName: 'test-db',
+				
+				dbDesc: 'Test Database',
+				
+				tableName: 'test_table',
+				
+				db: null,
+					
+				fetchedItems: {},
+				
+				
+				get: function(url, callback){
+					//	summary:
+					//		Tries to get data from
+					//		cache.
+					//	callback: Function
+					//		Callback. Fired after transaction
+					//		is finished. Recieves false or
+					//		data as first argument.
+					var name = this.tableName;
+					this.db.transaction(function(tx){
+						tx.executeSql('SELECT data FROM ' + name + ' WHERE url = ?', 
+						    [url],
+						    function (tr, result){
+								var data = result.rows.length < 1 ? false : ( result.rows.item(0).data || false );
+								callback(data);
+							},
+						    function(tr, error){
+								// fail silently?
+								callback(false);
+							}
+						);
+					});
+				},
+				
+				storeData: function(key, value, size){
+					//	summary:
+					//		Stores given key/value pair
+					//		in database.
+					
+					var name = this.tableName;
+					this.db.transaction(function(tx){
+						tx.executeSql('INSERT INTO ' + name + '(url, data) VALUES (?, ?)', 
+						    [key, value],
+						    function (tr, result){
+								if(result.rowsAffected === 1){
+									// success
+								}else{
+									stoTester.report("Insertion Failed for size " + size, true);
+									throw new Error("Insertion Failed");
+								}
+							},
+						    function(tr, error){
+								stoTester.report("Insertion Error at size " + size, true);
+							    console.log(error.message)
+							    
+								throw error;
+							}
+						);
+					});
+				},
+				
+				initDb: function(){
+					stoTester.report("init");
+					//	summary:
+					//		Sets up the database and table.
+					
+					var name = this.tableName;
+					// db
+					var dbSize = 2 * 1024 * 1024; // 500MB
+					this.db = openDatabase(this.dbName, '1.0', this.dbDesc, dbSize);
+
+					console.log(typeof(openDatabase));
+					console.log(this.db);
+					console.log(typeof this.db);
+					for(var prop in this.db){
+						console.log(prop);
+						console.log("--"+typeof(prop));
+					}
+					
+					// table
+					this.db.transaction(function(tx) {
+						tx.executeSql('CREATE TABLE IF NOT EXISTS ' + name + '(url TEXT PRIMARY KEY ASC, data TEXT)', [], dojo.hitch(stoTester, "clear"));
+					});
+				},
+
+				clear: function(){
+					stoTester.report("clear called");
+					var name = this.tableName;
+					this.db.transaction(function(tx) {
+						tx.executeSql('DELETE FROM ' + name, [], function(){ stoTester.report("READY"); });
+					});
+				},
+
+				fill: function(){
+					console.log("fill");
+					this.currentChunk += this.dataChunk;
+					this.report("Saving " + this.formatSize(this.currentChunk.length));
+					try{
+						localStorage.setItem("key", this.currentChunk);
+						this.storeData("key", this.dataChunk);
+					}catch(e){
+						console.log(e);
+						this.report("Limit reached", true);
+					}
+				},
+
+				fill2: function(){
+					var size;
+					for(var i = 1, m = 1000; i < m; i++){
+						size = this.formatSize(i * 512 * 1024);
+						this.report("Saving " + size);
+						try{
+							this.storeData("key" + i, this.dataChunk, size);
+						}catch(e){
+							console.log(e);
+							this.report("Limit reached while trying to store " + size, true);
+						}
+					}
+				},
+
+				report: function(msg, dontReplace){
+					console.log(msg);
+					if(dontReplace || true){
+						dojo.byId("results").innerHTML += "<div>"+msg+"</div>";
+					}else{
+						dojo.byId("results").innerHTML = "<div>"+msg+"</div>";
+					}
+				},
+
+				countRows: function(){
+					var name = this.tableName;
+					this.db.transaction(function(tx) {
+						tx.executeSql('SELECT count(url) FROM ' + name, [], function(tr, result){ stoTester.report("Rows: " + result.rows.length); });
+					});
+				},
+
+				getCurrentSize: function(){
+					return (localStorage.getItem("key").length / 1024) + "kb";
+				},
+
+				formatSize: function(size){
+					return (size / 1024) + "kb";
+				},
+
+				init: function(){
+					this.initDb();
+				}
+			};
+
+			dojo.addOnLoad(stoTester, "init");
+
+		</script>
+	</head>
+	<body>
+		<button onclick="stoTester.fill();">store chunk</button>
+		<button onclick="stoTester.fill2();">auto fill</button>
+		<button onclick="stoTester.countRows();">count rows</button>
+		<button onclick="stoTester.init();">force init</button>
+		<div id="results"></div>
+	</body>
+</html>
