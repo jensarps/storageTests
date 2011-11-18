@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>storage tests [sqlite, size limit]</title>
+		<style type="text/css">
+			.header div {
+				text-align: center;
+				font-weight: bold;
+				border-bottom: solid 1px #000000;
+			}
+			.row div {
+				display: inline-block;
+				width: 100px;
+			}
+		</style>
+		<script type="text/javascript" src="http://o.aolcdn.com/dojo/1.5/dojo/dojo.xd.js"></script>
+		<script type="text/javascript">
+			var stoTester = {
+				
+				dataChunk: new Array(512 * 1024 + 1).join('x'),
+
+				currentChunk: null,
+				
+				dbName: 'test-db-2',
+				
+				dbDesc: 'Test Database',
+				
+				tableName: 'test_table',
+				
+				db: null,
+
+				counter: 0,
+				
+				get: function(url, callback){
+					//	summary:
+					//		Tries to get data from
+					//		cache.
+					//	callback: Function
+					//		Callback. Fired after transaction
+					//		is finished. Recieves false or
+					//		data as first argument.
+					var name = this.tableName;
+					this.db.transaction(function(tx){
+						tx.executeSql('SELECT data FROM ' + name + ' WHERE url = ?', 
+						    [url],
+						    function (tr, result){
+								var data = result.rows.length < 1 ? false : ( result.rows.item(0).data || false );
+								callback(data);
+							},
+						    function(tr, error){
+								// fail silently?
+								callback(false);
+							}
+						);
+					});
+				},
+				
+				storeData: function(key, value, size, chunkNo){
+					//	summary:
+					//		Stores given key/value pair
+					//		in database.
+					
+					var name = this.tableName;
+					this.db.transaction(function(tx){
+						tx.executeSql('INSERT INTO ' + name + '(url, data) VALUES (?, ?)', 
+						    [key, value],
+						    function (tr, result){
+								if(result.rowsAffected === 1){
+									stoTester.report("Insertion Success for chunk #" + chunkNo, true);
+								}else{
+									stoTester.report("Insertion Failed for chunk #" + chunkNo, true);
+								}
+							},
+						    function(tr, error){
+								stoTester.report("Insertion Failed for chunk #" + chunkNo, true);
+							}
+						);
+					});
+				},
+				
+				initDb: function(){
+					stoTester.report("init...");
+					//	summary:
+					//		Sets up the database and table.
+					
+					var name = this.tableName;
+					// db
+					var dbSize = dojo.byId("size").value * 1024 * 1024;
+					this.db = openDatabase(this.dbName, '1.0', this.dbDesc, dbSize);
+
+					if(!this.db){
+						alert("Failed to open databse");
+					}
+					
+					// table
+					this.db.transaction(function(tx) {
+						tx.executeSql('CREATE TABLE IF NOT EXISTS ' + name + '(url TEXT PRIMARY KEY ASC, data TEXT)', [], dojo.hitch(stoTester, "clear"));
+					});
+				},
+
+				clear: function(){
+					stoTester.report("clear called");
+					var name = this.tableName;
+					this.db.transaction(function(tx) {
+						tx.executeSql('DELETE FROM ' + name, [], function(){ stoTester.report("READY"); });
+					});
+				},
+
+				fill: function(){
+					this.counter++;
+					try{
+						this.storeData("key" + this.counter, this.dataChunk, this.formatSize(512 * 1024 * this.counter), this.counter);
+					}catch(e){
+						console.log(e);
+						this.report("Limit reached", true);
+					}
+				},
+
+				fill2: function(){
+					var size;
+					for(var i = 1, m = 200; i < m; i++){
+						size = this.formatSize(i * 512 * 1024);
+						//this.report("Saving " + size);
+						try{
+							this.storeData("key" + i, this.dataChunk, size, i);
+						}catch(e){
+							console.log(e);
+							this.report("Limit reached while trying to store " + size, true);
+						}
+					}
+				},
+
+				report: function(msg, dontReplace){
+					console.log(msg);
+					if(dontReplace || true){
+						dojo.byId("results").innerHTML += "<div>"+msg+"</div>";
+					}else{
+						dojo.byId("results").innerHTML = "<div>"+msg+"</div>";
+					}
+				},
+
+				countRows: function(){
+					var name = this.tableName;
+					this.db.transaction(function(tx) {
+						tx.executeSql('SELECT count(url) FROM ' + name, [], function(tr, result){
+							var res =  result.rows.item(0),
+								chunks = res["count(url)"];
+							stoTester.report("Chunks stored: " + chunks + " (size: " + (chunks * 512) + "KB)");
+						});
+					});
+				},
+
+				getCurrentSize: function(){
+					return (localStorage.getItem("key").length / 1024) + "kb";
+				},
+
+				formatSize: function(size){
+					return (size / 1024) + "kb";
+				},
+
+				init: function(){
+					this.initDb();
+				}
+			};
+
+			//dojo.addOnLoad(stoTester, "init");
+
+		</script>
+	</head>
+	<body>
+		<button onclick="stoTester.fill();">store chunk</button>
+		<!-- <button onclick="stoTester.fill2();">auto fill</button> -->
+		<button onclick="stoTester.countRows();">count chunks</button>
+		<button onclick="stoTester.init();">init</button>
+		Request size (MB):
+		<input type="text" value="5" id="size" />
+		<hr />
+		<h1>storage tests [sqlite, size limit]</h1>
+		<ol>
+			<li>Click 'init'.</li>
+			<li>Wait for the word 'READY' to appear.</li>
+			<li>Click 'store chunk' and wait for a message to appear.</li>
+			<li>Repeat #3 until it breaks, reports an error or stops giving messages.</li>
+			<li>Click 'count chunks' to see how much got stored so far.</li>
+		</ol>
+		<hr />
+		<div id="results"></div>
+	</body>
+</html>

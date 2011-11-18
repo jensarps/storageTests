@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>storage tests [localStorage, size limit]</title>
+		<style type="text/css">
+			.header div {
+				text-align: center;
+				font-weight: bold;
+				border-bottom: solid 1px #000000;
+			}
+			.row div {
+				display: inline-block;
+				width: 100px;
+			}
+		</style>
+		<script type="text/javascript" src="http://o.aolcdn.com/dojo/1.5/dojo/dojo.xd.js"></script>
+		<script type="text/javascript">
+			var stoTester = {
+					
+				sto: window.localStorage,
+
+				dataChunk: new Array(512 * 1024 + 1).join('x'),
+
+				currentChunk: "",
+
+				fill: function(){
+				console.log("fill");
+					this.currentChunk += this.dataChunk;
+					this.report("Saving " + this.formatSize(this.currentChunk.length));
+					try{
+						localStorage.setItem("key", this.currentChunk);
+					}catch(e){
+						console.log(e);
+						this.report("Limit reached", true);
+						this.report("Size so far: " + this.getCurrentSize(), true);
+					}
+				},
+
+				fill2: function(){
+					for(var i = 1, m = 201; i < m; i++){
+						this.report("Saving " + this.formatSize(i * 512 * 1024));
+						try{
+							localStorage.setItem("key" + i, this.dataChunk);
+						}catch(e){
+							console.log(e);
+							this.report("Limit reached", true);
+							this.report("Size so far: " + this.getCurrentSize(), true);
+						}
+					}
+				},
+
+				report: function(msg, dontReplace){
+					console.log(msg);
+					if(dontReplace){
+						dojo.byId("results").innerHTML += "<div>"+msg+"</div>";
+					}else{
+						dojo.byId("results").innerHTML = "<div>"+msg+"</div>";
+					}
+				},
+
+				getCurrentSize: function(){
+					return (localStorage.getItem("key").length / 1024) + "kb";
+				},
+
+				formatSize: function(size){
+					return (size / 1024) + "kb";
+				},
+
+				init: function(){
+					if(typeof(window.localStorage) == "undefined"){
+						alert("No localStorage available.");
+						return;
+					}
+					
+					localStorage.clear();
+					localStorage.setItem("key", "");
+				}
+			};
+
+			dojo.addOnLoad(stoTester, "init");
+
+		</script>
+	</head>
+	<body>
+		<button onclick="stoTester.fill();">store chunk</button>
+		<!-- <button onclick="stoTester.fill2();">auto fill</button> -->
+		<hr />
+		<h1>storage tests [localStorage, size limit]</h1>
+		<ol>
+			<li>Click 'store chunk'.</li>
+			<li>Repeat #1 until it breaks.</li>
+		</ol>
+		<hr />
+		<div id="results"></div>
+	</body>
+</html>
